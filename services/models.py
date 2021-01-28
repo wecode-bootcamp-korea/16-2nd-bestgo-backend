@@ -7,9 +7,10 @@ class Category(models.Model):
         db_table = "categories"
 
 class Service(models.Model):
-    category = models.ForeignKey('Category', on_delete=models.CASCADE)
-    name     = models.CharField(max_length=100)
-
+    category  = models.ForeignKey('Category', on_delete=models.CASCADE)
+    name      = models.CharField(max_length=100)
+    image_url = models.URLField(max_length=2000)
+    
     class Meta:
         db_table = "services"
 

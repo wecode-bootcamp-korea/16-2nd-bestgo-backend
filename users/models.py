@@ -16,11 +16,11 @@ class User(models.Model):
 
 class Master(models.Model):
     user            = models.ForeignKey('User', on_delete=models.CASCADE)
-    introduction    = models.CharField(max_length=100)
+    introduction    = models.CharField(max_length=100, null=True)
     birthdate       = models.DateField()
     career          = models.IntegerField(null=True)
     description     = models.TextField(null=True)
-    master_regions  = models.ManyToManyField('Region', related_name='master_region', through='Area')
+    subregions      = models.ForeignKey('Subregion', default=1, on_delete=models.SET_DEFAULT)
     master_payments = models.ManyToManyField('Payment', related_name='master_payment', through='MasterPayment')
     reviews         = models.ManyToManyField('User', related_name='user_review', through='Review')
     created_at      = models.DateTimeField(auto_now_add=True)
@@ -53,12 +53,12 @@ class Region(models.Model):
     class Meta:
         db_table = "regions"
 
-class Area(models.Model):
+class SubRegion(models.Model):
     region = models.ForeignKey('Region', on_delete=models.CASCADE)
-    master = models.ForeignKey('Master', on_delete=models.CASCADE)
+    name   = models.CharField(max_length=100)
 
     class Meta:
-        db_table = "areas"
+        db_table = "sub_regions"
 
 class Certificate(models.Model):
     master    = models.ForeignKey('Master', on_delete=models.CASCADE)
