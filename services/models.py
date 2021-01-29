@@ -16,33 +16,35 @@ class Service(models.Model):
         db_table = "services"
 
 class Request(models.Model):
-    user                 = models.ForeignKey('users.User', on_delete=models.CASCADE)
-    age                  = models.IntegerField()
-    gender               = models.ForeignKey('users.Gender', related_name="user_gender", on_delete=models.CASCADE)
-    lesson_type          = models.ForeignKey('LessonType', on_delete=models.CASCADE)
-    preferred_lesson_day = models.CharField(max_length=100)
-    master_gender        = models.ForeignKey('users.Gender', related_name="master_gender", on_delete=models.CASCADE)
-    lesson_date          = models.CharField(max_length=100)
-    region               = models.ForeignKey('users.Region', on_delete=models.CASCADE)
-    lesson_style         = models.CharField(max_length=100)
-    expired_at           = models.DateTimeField()
-    created_at           = models.DateTimeField(auto_now_add=True)
-    updated_at           = models.DateTimeField(auto_now=True)
+    user       = models.ForeignKey('users.User', on_delete=models.CASCADE)
+    service    = models.ForeignKey('Service', on_delete=models.SET_NULL, null=True)
+    region     = models.ForeignKey('users.Region', on_delete=models.CASCADE)
+    expired_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = "requests"
 
-class LessonType(models.Model):
-    name = models.CharField(max_length=100)
+class Question(models.Model):
+    name = models.CharField(max_length=200)
 
     class Meta:
-        db_table = "lesson_types"
+        db_table = "questions"
 
-class LessonStyle(models.Model):
-    name = models.CharField(max_length=100)
+class QuestionChoice(models.Model):
+    question = models.ForeignKey('Question', on_delete=models.CASCADE)
+    choice   = models.CharField(max_length=200)
 
     class Meta:
-        db_table = "lesson_styles"
+        db_table = "question_choices"
+
+class SelectedChoice(models.Model):
+    request = models.ForeignKey('Request', on_delete=models.CASCADE)
+    choice  = models.ForeignKey('QuestionChoice', on_delete=models.SET_NULL, null=True)
+    
+    class Meta:
+        db_table = "selected_choices"
 
 class RequestMasterMatch(models.Model):
     request = models.ForeignKey('Request', on_delete=models.CASCADE)
