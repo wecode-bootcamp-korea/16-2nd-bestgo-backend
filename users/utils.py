@@ -5,7 +5,6 @@ from django.http  import JsonResponse
 from users.models import User
 import my_settings
 
-
 def validate_email(email):
     pattern = re.compile(r'^[a-zA-Z0-9+-_.]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$')
     return pattern.match(email)
@@ -23,7 +22,6 @@ def validate_birthdate(birthdate):
 
 def validate_master(user):
     return user.master_set.exists()
-
 
 def login_required(function):
 
@@ -48,4 +46,3 @@ def login_required(function):
         except jwt.exceptions.DecodeError:
             return JsonResponse({'MESSAGE': 'JWT_DECODE_ERROR'}, status=400)
     return wrapper
-

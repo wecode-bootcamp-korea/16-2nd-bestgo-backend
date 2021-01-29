@@ -38,11 +38,14 @@ class MasterService(models.Model):
         db_table = "master_services"
 
 class Review(models.Model):
-    user      = models.ForeignKey('User', on_delete=models.CASCADE)
-    master    = models.ForeignKey('Master', related_name='master_review', on_delete=models.CASCADE)
-    rating    = models.DecimalField(max_digits=2, decimal_places=1)
-    image_url = models.URLField(max_length=2000, null=True)
-    content   = models.TextField(null=True)
+    user       = models.ForeignKey('User', on_delete=models.CASCADE)
+    master     = models.ForeignKey('Master', on_delete=models.CASCADE)
+    service    = models.ForeignKey('services.Service',on_delete=models.CASCADE)
+    rating     = models.DecimalField(max_digits=2, decimal_places=1)
+    image_url  = models.URLField(max_length=2000, null=True)
+    content    = models.TextField(null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = "reviews"
