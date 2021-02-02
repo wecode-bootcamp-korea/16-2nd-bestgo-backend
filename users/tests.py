@@ -1,6 +1,8 @@
 import unittest, json, jwt
 import bcrypt
 from datetime        import datetime
+from secrets         import token_urlsafe
+from unittest.mock   import MagicMock, patch
 
 from django.test     import TestCase,Client, TransactionTestCase
 
@@ -204,7 +206,6 @@ class MasterSignUpTest(TestCase):
                 master  = master,
                 service = service
         )    
-
 
     def setUp(self):
         pass
@@ -477,5 +478,48 @@ class CategoryView(TransactionTestCase):
             'MESSAGE':'TYPE_ERROR'
         })
 
+class KakaoSignInTest(TestCase):
 
+    def setUp(self):
+        hashed_password = bcrypt.hashpw(token_urlsafe()[:10].encode(), bcrypt.gensalt())
+        kakao_data      = {
+            'kakao_account': {
+                'email' : 'jang@kakao.com',
+                'profile' : {
+                    'nickname' : 'hi',
+                    'gender'   : '남자'
+                }
+            }
+        }
+        Gender.objects.create(name='남자')
+        gender = Gender.objects.get(name=kakao_data['kakao_account']['profile']['gender'])
+        User.objects.create(
+            email    = kakao_data['kakao_account']['email'],
+            name     = kakao_data['kakao_account']['profile']['nickname'],
+            gender   = gender,
+            password = hashed_password.decode()
+        )
+    
+    def tearDown(self):
+        User.objects.all().delete()
 
+    @patch('users.views.requests')
+    def test_kakao_signin_success(self, mock_request):
+
+        class FakeResponse:
+            def json(self):
+                return { 'kakao_account': {
+                            'email' : 'jang41@kakao.com',
+                            'profile' : {
+                                'nickname' : 'hi',
+                                'gender'   : 'male'
+                            }
+                        }}
+        mock_request.get = MagicMock(return_value = FakeResponse())
+        header           = {'Authorization': 'fake'}
+        response         = client.get('/users/kakao_signin', **header, content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(),{
+            'MESSAGE':'SUCCESS',
+            'token':response.json()['token']
+        })
