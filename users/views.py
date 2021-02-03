@@ -3,12 +3,15 @@ import bcrypt
 import jwt
 import re
 from datetime               import datetime, timedelta
+import requests
+from secrets                import token_urlsafe 
 
 from django.http            import JsonResponse
 from django.views           import View
 from django.core            import mail
 from django.template.loader import render_to_string
 from django.utils.html      import strip_tags
+from django.db.models       import Avg, Count
 
 from my_settings            import SECRET_KEY, ALGORITHM, EMAIL
 from users.models           import User, Master, Region, SubRegion, Gender, MasterService
@@ -19,7 +22,9 @@ from users.utils            import (
                                     validate_phone_number,
                                     validate_birthdate,
                                     validate_master,
-                                    login_required
+                                    login_required,
+                                    master_required,
+                                    query_debugger
                             )
                             
 class SignUpView(View):
@@ -86,6 +91,7 @@ class SignInView(View):
             return JsonResponse({'MESSAGE': 'TYPE_ERROR'}, status=400)
 
 class MasterSignUpView(View):
+
     @login_required
     def post(self, request):
         try:
@@ -104,18 +110,24 @@ class MasterSignUpView(View):
             if not validate_phone_number(phone_number):
                 return JsonResponse({'MESSAGE':'INVALID_PHONE_NUMBER'}, status=400)
 
+            if User.objects.filter(phone_number=phone_number).exists():
+                 return JsonResponse({'MESSAGE':'DUPLICATED_PHONE_NUMBER'}, status=400)
+
             if not validate_birthdate(birthdate):
                 return JsonResponse({'MESSAGE':'INVALID_BIRTHDATE'}, status=400)
 
             birthdate         = datetime.strptime(birthdate,'%Y%m%d').date()
-            user.phone_number = phone_number
-            user.save()
 
             master = Master.objects.create(user=user, birthdate=birthdate, subregions=sub_region)
             MasterService.objects.bulk_create([
                 MasterService(master=master, service=Service.objects.get(name=service))
             for service in services ]) 
             
+            user.phone_number = phone_number
+            user.gender       = gender
+            user.is_master    = True
+            user.save()
+
             return JsonResponse({'MESSAGE': 'MASTER_CREATED'}, status=201)
         except json.decoder.JSONDecodeError:
             return JsonResponse({'MESSAGE': 'JSON_DECODE_ERROR'}, status=400)
@@ -141,14 +153,21 @@ class CategoryServiceView(View):
             if query_strings:
                 categories = json.loads(request.GET.get('category'))
                 services   = Service.objects.filter(category__in=categories)
-                req_list   = [ service.name for service in services ]
-
-                return JsonResponse({'services': req_list }, status=200)
+                req_dict   = {
+                    'question'     : '구체적으로 어떤 서비스를 진행 할 수 있나요?',
+                    'sub_question' : '진행하고자 하는 서비스에 대해 알려주세요. 딱! 맞는 분을 연결 시켜 드릴게요.',
+                    'services'     : [ {'name':service.name} for service in services ]
+                }
+                return JsonResponse(req_dict, status=200)
                 
             all_categories = Category.objects.all()
-            req_list       = [ category.name for category in all_categories]
+            req_dict       = {
+                'question'     : '어떤 서비스를 제공 하실 수 있나요?',
+                'sub_question' : '전문적으로 하시는 일을 알려주시면 서비스를 필요로 하는 고객을 연결 시켜 드립니다.',
+                'services'   : [ {'id':category.id, 'name':category.name} for category in all_categories]
+            }
 
-            return JsonResponse({'categories': req_list }, status=200)
+            return JsonResponse(req_dict, status=200)
         except json.decoder.JSONDecodeError:
             return JsonResponse({'MESSAGE': 'JSON_DECODE_ERROR'}, status=400)
         except TypeError:
@@ -269,9 +288,143 @@ class PasswordResetView(View):
             return JsonResponse({'MESSAGE': 'PASSWORD_CHANGED'}, status=200)
         except json.decoder.JSONDecodeError:
             return JsonResponse({'MESSAGE': 'JSON_DECODE_ERROR'}, status=400)
-        except KeyError:
+        except KeyError:    
             return JsonResponse({'MESSAGE': 'KEY_ERROR'}, status=400)
         except TypeError:
             return JsonResponse({'MESSAGE': 'TYPE_ERROR'}, status=400)
         except ValueError:
             return JsonResponse({'MESSAGE': 'VALUE_ERROR'}, status=400)
+
+class ProfileListView(View):
+    
+    @query_debugger
+    def get(self, request):
+        sort_method = request.GET.get('sorted_by','id')
+        masters     = Master.objects.select_related('user')\
+                                    .prefetch_related('review_set')\
+                                    .annotate(avg=Avg('review__rating'),cnt=Count('review'))\
+                                    .order_by(sort_method)
+        master_list = [{
+            'id'           : master.id,
+            'name'         : master.user.name,
+            'introduction' : master.introduction if master.introduction else "",
+            'rating'       : round(float(master.avg),1) if master.avg else 0,
+            'review_count' : master.cnt,
+            'review'       : master.review_set.all()[0].content if master.review_set.exists() else "",
+            'profile_img'  : master.user.profile_image
+        } for master in masters ]
+
+        req_dict = {
+            'count'   : masters.count(),
+            'masters' : master_list
+        }
+
+        return JsonResponse({'masterList':req_dict}, status=200)
+        
+class ProfileDetailView(View):
+    
+    @query_debugger
+    def get(self, request, master_id):
+        try:
+            master = Master.objects.select_related('subregions__region')\
+                                    .prefetch_related('masterservice_set__service','master_payments')\
+                                    .annotate(avg=Avg('review__rating'))\
+                                    .get(id=master_id)
+            req_dict = [{    
+                'name'         : master.user.name,
+                'mainService'  : master.masterservice_set.get(is_main=True).service.name\
+                                    if master.masterservice_set.filter(is_main=True) else '',
+                'introduction' : master.introduction if master.introduction else '',
+                'area'         : master.subregions.region.name +" "+ master.subregions.name,
+                'rating'       : round(float(master.avg),1),
+                'allService'   : [ master_service.service.name for master_service in master.masterservice_set.all() ],
+                'description'  : master.description if master.description else '',
+                'profile_img'  : master.user.profile_image,
+                'payments'     : [ payment.name for payment in master.master_payments.all()]
+            }]
+
+            return JsonResponse({'profile': req_dict }, status=200)
+        except TypeError:
+            return JsonResponse({'MESSAGE': 'TYPE_ERROR'}, status=400)
+
+class ProfileMainServiceView(View):
+
+    @query_debugger
+    @master_required
+    def get(self, request):
+        try: 
+            master          = getattr(request,'master')
+            master_services = master.masterservice_set.select_related('service').all()
+
+            req_list = [
+                master_service.service.name
+            for master_service in master_services ]
+
+            return JsonResponse({'services': req_list}, status=200)
+        except TypeError:
+            return JsonResponse({'MESSAGE': 'TYPE_ERROR'}, status=400)
+    
+    @master_required
+    def patch(self, request):
+        try:
+            data         = json.loads(request.body)
+            main_service = data['main_service']
+            master       = getattr(request,'master')
+            service      = Service.objects.get(name=main_service)
+
+            master.masterservice_set.all().update(is_main=False)
+            master_service         = master.masterservice_set.get(service=service)
+            master_service.is_main = True
+            master_service.save()
+            
+            return JsonResponse({'MESSAGE': 'MAIN_SERVICE_CHANGED'}, status=200)
+        except Service.DoesNotExist:
+            return JsonResponse({'MESSAGE': 'SERVICE_DOESNT_EXIST'}, status=400)
+        except TypeError:
+            return JsonResponse({'MESSAGE': 'TYPE_ERROR'}, status=400)
+
+class ProfileIntroductionView(View):
+
+    @master_required
+    def get(self, request):
+        master       = getattr(request,'master')
+        introduction = master.introduction if master.introduction else ""
+
+        return JsonResponse({'introduction': introduction}, status=200)
+    
+    @master_required
+    def patch(self, request):
+        try:
+            data                = json.loads(request.body)
+            introduction        = data['introduction']
+            master              = getattr(request,'master')
+            master.introduction = data['introduction'] if len(introduction)<100 else introduction[:99]
+            master.save()
+
+            return JsonResponse({'MESSAGE': 'INTRODUCTION_CHANGED'}, status=200)
+        except TypeError:
+            return JsonResponse({'MESSAGE': 'TYPE_ERROR'}, status=400)
+        except KeyError:
+            return JsonResponse({'MESSAGE': 'KEY_ERROR'}, status=400)
+
+class ProfileDescriptionView(View):
+
+    @master_required
+    def get(self, request):
+        master      = getattr(request,'master')
+        description = master.description if master.description else ""
+
+        return JsonResponse({'description': description}, status=200)
+    
+    @master_required
+    def patch(self, request):
+        try:
+            data               = json.loads(request.body)
+            description        = data['description']
+            master             = getattr(request,'master')
+            master.description = data['description']
+            master.save()
+
+            return JsonResponse({'MESSAGE': 'DESCRIPTION_CHANGED'}, status=200)
+        except KeyError:
+            return JsonResponse({'MESSAGE': 'KEY_ERROR'}, status=400)

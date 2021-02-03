@@ -6,7 +6,7 @@ from unittest.mock   import MagicMock, patch
 
 from django.test     import TestCase,Client, TransactionTestCase
 
-from users.models    import User, Gender, Region, SubRegion, Master, MasterService
+from users.models    import User, Gender, Region, SubRegion, Master, MasterService, Review
 from services.models import Service, Category
 from my_settings     import SECRET_KEY, ALGORITHM
 
@@ -438,7 +438,7 @@ class MasterSignUpTest(TestCase):
             'MESSAGE':'ALREADY_MASTER'
         })
 
-class CategoryView(TransactionTestCase):
+class CategoryViewTest(TransactionTestCase):
 
     def Setup(self):
         category = Category.objects.create(name='프런트엔드')
@@ -459,6 +459,8 @@ class CategoryView(TransactionTestCase):
         response = client.get('/users/category',{'category': '[2]'}, content_type='application/json')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(),{
+            "question": "구체적으로 어떤 서비스를 진행 할 수 있나요?",
+            "sub_question": "진행하고자 하는 서비스에 대해 알려주세요. 딱! 맞는 분을 연결 시켜 드릴게요.",
             "services": [
                 "HTML",
                 "CSS",
@@ -523,3 +525,177 @@ class KakaoSignInTest(TestCase):
             'MESSAGE':'SUCCESS',
             'token':response.json()['token']
         })
+
+class ProfileTest(TestCase):
+
+    @classmethod
+    def setUpTestData(cls):
+        hashed_password = bcrypt.hashpw('1a2s3d4f'.encode('utf-8'), bcrypt.gensalt())
+        user = User.objects.create(
+            name         = '장장장',
+            email        = 'jun553714@mail.com',
+            password     = hashed_password.decode(),
+            phone_number = '01315232919'
+        )
+        gender     = Gender.objects.create(name='남자')
+        region     = Region.objects.create(name='서울특별시')
+        SubRegion.objects.create(name='광진구', region=region)
+        sub_region = region.subregion_set.get(name='광진구')
+        category   = Category.objects.create(name='백엔드')
+        service    = Service.objects.create(category=category, name='Python')
+        birthdate  = datetime.strptime('18231103', '%Y%m%d').date()
+        master     = Master.objects.create(
+            user       = user,
+            birthdate  = birthdate,
+            subregions = sub_region 
+        )
+        MasterService.objects.create(
+                master  = master,
+                service = service
+        )
+        user.is_master     = True
+        user.profile_image = 'https://images.unsplash.com/photo-1568035105640-89538ccccd24?ixid=MXwxMjA3fDB8MHxzZWFyY2h8NDZ8fGNhdHxlbnwwfHwwfA%3D%3D&amp;ixlib=rb-1.2.1&amp;auto=format&amp;fit=crop&amp;w=100&amp;q=60'
+        user.save()
+        reviewer = User.objects.create(
+            name         = '장장김',
+            email        = 'jun554@mail.com',
+            password     = hashed_password.decode(),
+            phone_number = '01315232918'
+        )
+        Review.objects.create(
+            user=reviewer,
+            master=master,
+            service=service,
+            rating=4.0,
+            content='hi'
+        )
+            
+
+    def setUp(self):
+        pass
+
+    def test_get_profile_list_success(self):
+        master = Master.objects.first()
+        user_token = jwt.encode({'user_id':master.user.id}, SECRET_KEY, algorithm=ALGORITHM)
+
+        response   = client.get('/users/profile', **{'HTTP_Authorization' : user_token}, content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(),{
+                'masterList' : {
+                    'count'   : 1,
+                    'masters' : [
+                        {
+                            'id'           : 5,
+                            'name'         : '장장장',
+                            'introduction' : '',
+                            'rating'       : 4.0,
+                            'review_count' : 1,
+                            'review'       : 'hi',
+                            'profile_img'  : 'https://images.unsplash.com/photo-1568035105640-89538ccccd24?ixid=MXwxMjA3fDB8MHxzZWFyY2h8NDZ8fGNhdHxlbnwwfHwwfA%3D%3D&amp;ixlib=rb-1.2.1&amp;auto=format&amp;fit=crop&amp;w=100&amp;q=60'
+                        }
+                    ]
+                }
+        })
+
+    def test_patch_profile_main_service_success(self):
+        main_service = {
+            'main_service':'Python'
+        }
+        master = Master.objects.first()
+        user_token = jwt.encode({'user_id':master.user.id}, SECRET_KEY, algorithm=ALGORITHM)
+
+        response   = client.patch('/users/profile_main_service', json.dumps(main_service), **{'HTTP_Authorization' : user_token}, content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(),{
+            'MESSAGE': 'MAIN_SERVICE_CHANGED'
+        })
+    
+    def test_patch_profile_main_service_doesnt_exists(self):
+        main_service = {
+            'main_service':'hi'
+        }
+        master = Master.objects.first()
+        user_token = jwt.encode({'user_id':master.user.id}, SECRET_KEY, algorithm=ALGORITHM)
+
+        response   = client.patch('/users/profile_main_service', json.dumps(main_service), **{'HTTP_Authorization' : user_token}, content_type='application/json')
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json(),{
+            'MESSAGE': 'SERVICE_DOESNT_EXIST'
+        })
+
+    def test_patch_profile_introduction_success(self):
+        introduction = {
+            'introduction':'dmdkmdkmkdmkdmkdkmdmdkkddmkdmdkmdk'
+        }
+        master = Master.objects.first()
+        user_token = jwt.encode({'user_id':master.user.id}, SECRET_KEY, algorithm=ALGORITHM)
+
+        response   = client.patch('/users/profile_introduction', json.dumps(introduction), **{'HTTP_Authorization' : user_token}, content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(),{
+            'MESSAGE': 'INTRODUCTION_CHANGED'
+        })
+    
+    def test_patch_profile_introduction_type_error(self):
+        introduction = {
+            'introduction':123
+        }
+        master = Master.objects.first()
+        user_token = jwt.encode({'user_id':master.user.id}, SECRET_KEY, algorithm=ALGORITHM)
+
+        response   = client.patch('/users/profile_introduction', json.dumps(introduction), **{'HTTP_Authorization' : user_token}, content_type='application/json')
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json(),{
+            'MESSAGE': 'TYPE_ERROR'
+        })
+
+    def test_patch_profile_intrduction_key_error(self):
+        introduction = {
+        }
+        master = Master.objects.first()
+        user_token = jwt.encode({'user_id':master.user.id}, SECRET_KEY, algorithm=ALGORITHM)
+
+        response   = client.patch('/users/profile_introduction', json.dumps(introduction), **{'HTTP_Authorization' : user_token}, content_type='application/json')
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json(),{
+            'MESSAGE': 'KEY_ERROR'
+        })
+    
+    def test_patch_profile_description_success(self):
+        description = {
+            'description':'hello'
+        }
+        master = Master.objects.first()
+        user_token = jwt.encode({'user_id':master.user.id}, SECRET_KEY, algorithm=ALGORITHM)
+
+        response   = client.patch('/users/profile_description', json.dumps(description), **{'HTTP_Authorization' : user_token}, content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(),{
+            'MESSAGE': 'DESCRIPTION_CHANGED'
+        })
+    
+    def test_patch_profile_description_key_error(self):
+        description = {
+        }
+        master = Master.objects.first()
+        user_token = jwt.encode({'user_id':master.user.id}, SECRET_KEY, algorithm=ALGORITHM)
+
+        response   = client.patch('/users/profile_description', json.dumps(description), **{'HTTP_Authorization' : user_token}, content_type='application/json')
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json(),{  
+            'MESSAGE': 'KEY_ERROR'
+        })
+
+    def test_get_profile_description_success(self):
+        master     = Master.objects.first()
+        user_token = jwt.encode({'user_id':master.user.id}, SECRET_KEY, algorithm=ALGORITHM)
+
+        response   = client.get('/users/profile_description', **{'HTTP_Authorization' : user_token}, content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(),{
+            'description': ''
+        })
+
+
+    
+    
