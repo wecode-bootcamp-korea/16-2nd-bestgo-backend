@@ -18,10 +18,11 @@ class Service(models.Model):
 class Request(models.Model):
     user       = models.ForeignKey('users.User', on_delete=models.CASCADE)
     service    = models.ForeignKey('Service', on_delete=models.SET_NULL, null=True)
-    region     = models.ForeignKey('users.Region', on_delete=models.CASCADE)
+    subregion  = models.ForeignKey('users.SubRegion', on_delete=models.CASCADE)
     expired_at = models.DateTimeField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    choices    = models.ManyToManyField('QuestionChoice', related_name= 'made_choices', through='SelectedChoice')
 
     class Meta:
         db_table = "requests"
@@ -47,8 +48,9 @@ class SelectedChoice(models.Model):
         db_table = "selected_choices"
 
 class RequestMasterMatch(models.Model):
-    request = models.ForeignKey('Request', on_delete=models.CASCADE)
-    master  = models.ForeignKey('users.Master', on_delete=models.CASCADE)
+    request  = models.ForeignKey('Request', on_delete=models.CASCADE)
+    master   = models.ForeignKey('users.Master', on_delete=models.CASCADE)
+    priority = models.PositiveSmallIntegerField(default=1)
 
     class Meta:
         db_table = "request_master_matches"
