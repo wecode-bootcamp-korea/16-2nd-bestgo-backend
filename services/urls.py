@@ -13,4 +13,5 @@ urlpatterns = [
      path('/requestDetail', views.ReceivedRequestDetailView.as_view()),
      path('/createQuotation', views.QuotationView.as_view()),
      path('/quotationList', views.QuotationListView.as_view()),
+     path('/detailQuotationList', views.DetailQuotationListView.as_view()),
 ]
