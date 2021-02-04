@@ -11,7 +11,7 @@ from django.db.models   import Avg
 from operator           import itemgetter
 from services.utils     import get_date
 from datetime           import datetime, timedelta
-from users.utils        import login_required
+from users.utils        import login_required, master_required
 from services.models    import Service, Category, Quotation, Request, RequestMasterMatch, PricingMethod, Question, SelectedChoice, QuestionChoice
 from users.models       import Region, SubRegion, MasterService, Review, Master
 
@@ -172,7 +172,7 @@ class RequestDistributionView(View):
             return JsonResponse({'MESSAGE':'REQUEST_DOES_NOT_EXISTS'},status=404)
 
 class ReceivedRequestListView(View):
-    @login_required
+    @master_required
     def get(self, request):
         which_user     = getattr(request,'user')
         master         = Master.objects.get(user=which_user)
@@ -208,6 +208,7 @@ class ReceivedRequestListView(View):
     
 
 class ReceivedRequestDetailView(View):
+    @master_required
     def get(self, request):
         try:
             which_request = request.GET['requestId']
@@ -237,7 +238,7 @@ class ReceivedRequestDetailView(View):
             return JsonResponse({'MESSAGE':'REQUEST_DOES_NOT_EXISTS'},status=404)
 
 class QuotationView(View):
-    @login_required
+    @master_required
     def post(self, request):
         try:
             data          = json.loads(request.body)
@@ -275,11 +276,11 @@ class QuotationListView(View):
                 all_quotations = {
                     'requestId'    : request.id,
                     'service'      : request.service.name,
-                    'createdAt'   : request.created_at.date(),
+                    'createdAt'    : request.created_at.date(),
                     'expired'      : is_expired,
                     'masterImage' : [{
-                        'masterId'           : profile.master.id,
-                        'masterImageUrl'     : profile.master.user.profile_image,
+                        'masterId'       : profile.master.id,
+                        'masterImageUrl' : profile.master.user.profile_image,
                     } for profile in matched_master]
                 }
                 users_quotations.append(all_quotations)
@@ -287,3 +288,34 @@ class QuotationListView(View):
 
         except KeyError:
             return JsonResponse({"MESSAGE": "KEY_ERROR_OCCURED"},status=400)
+
+class DetailQuotationListView(View):
+    @login_required
+    def get(self,request):
+        from_request    = request.GET['requestId']
+        which_request   = Request.objects.get(id=from_request)
+        matched_all     = RequestMasterMatch.objects.filter(request=from_request)
+        request_detail  = {
+            "serviceName"  : which_request.service.name,
+            "createdAt"    : which_request.created_at,
+            "serviceImage" : which_request.service.image_url,
+        }
+
+        sent_quotation=[]
+        for match in matched_all:
+            price             = match.quotation_set.first().price if match.quotation_set.first() else 0
+            master_rating_avg = Review.objects.filter(master= match.master).aggregate(avg=Avg('rating'))
+    
+            proposal={
+                "masterId"       : match.master.id,
+                "masterName"     : match.master.user.name,
+                "masterImageUrl" : match.master.user.profile_image,
+                "reviewCount"    : Review.objects.filter(master= match.master).count(),
+                "avgRating"      : float(round(master_rating_avg['avg'],1)) if master_rating_avg['avg'] else 0,
+                "price"          : match.quotation_set.first().price if match.quotation_set.first() else 0,
+                "pricingMethod"  : match.quotation_set.first().pricing_method.name if match.quotation_set.first() else 0,
+                "total_hired"    : match.quotation_set.filter(is_employed=True).count(),
+            }
+            sent_quotation.append(proposal)
+
+        return JsonResponse({'REQUEST_DETAIL':request_detail,"RECEIVED_QUOTATION":sent_quotation},status= 200)
