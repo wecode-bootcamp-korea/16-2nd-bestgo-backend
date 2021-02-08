@@ -2,6 +2,7 @@
 
 ![Bestgo](https://project-bestgo.s3.ap-northeast-2.amazonaws.com/logo_image/bestgo.png)
 
+## Project Introduction
 ### Team organization 
 **Frontend** : 3명
 **Backend** : 2명
@@ -18,6 +19,7 @@
 > [AQueryTool](https://aquerytool.com:443/aquerymain/index/?rurl=1b3e6c81-85d4-42fc-aa2f-01d629abf657&)
 
 **Password : 7om16d**
+
 
 # 🥽 Tech Stack 
 ## Backend
