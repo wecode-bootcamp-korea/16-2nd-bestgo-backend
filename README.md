@@ -6,7 +6,7 @@
 **Frontend** : 3명
 **Backend** : 2명
 
-### 기간
+### Project Term
 2021-01-25 ~ 2021-02-05
 
 
