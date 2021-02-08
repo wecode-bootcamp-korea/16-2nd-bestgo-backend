@@ -14,6 +14,11 @@
 
 > [Bestgo-Frontend](https://github.com/wecode-bootcamp-korea/16-2nd-bestgo-frontend)
 
+# Modeling
+> [AQueryTool](https://aquerytool.com:443/aquerymain/index/?rurl=1b3e6c81-85d4-42fc-aa2f-01d629abf657&)
+
+**Password : 7om16d**
+
 # 🥽 Tech Stack 
 ### Backend
 + **Django**
