@@ -20,7 +20,7 @@
 **Password : 7om16d**
 
 # 🥽 Tech Stack 
-### Backend
+## Backend
 + **Django**
 + PYJWT
 + bcrypt
@@ -29,7 +29,7 @@
 + Docker 
 + CorsHeaders
 
-### Tools
+## Tools
 + Github
 + Trello
 + Postman
