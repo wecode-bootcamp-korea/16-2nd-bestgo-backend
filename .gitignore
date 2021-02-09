@@ -19,6 +19,7 @@ uploaders.py
 *.sql
 image_crawler.py
 images/
+Dockerfile
 .DS_Store
 
 # If your build process includes running collectstatic, then you probably don't need or want to include staticfiles/

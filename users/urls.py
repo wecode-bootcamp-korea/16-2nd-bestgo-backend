@@ -11,7 +11,8 @@ from .views import (
     ProfileIntroductionView,
     ProfileDescriptionView,
     ProfileListView,
-    ProfileDetailView
+    ProfileDetailView,
+    TempMasterView
 )
 
 urlpatterns = [
@@ -26,4 +27,5 @@ urlpatterns = [
     path('/profile_main_service',ProfileMainServiceView.as_view()),
     path('/profile_introduction',ProfileIntroductionView.as_view()),
     path('/profile_description',ProfileDescriptionView.as_view()),
+    path('/temp_master',TempMasterView.as_view())
 ]   

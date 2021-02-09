@@ -37,6 +37,7 @@ class ServiceListView(View):
             category     = request.GET['catCd']
             cat_id       = Category.objects.get(id=category)
 
+
             services     = cat_id.service_set.all()
             service_list = [{
                             'serviceId':service.id,
