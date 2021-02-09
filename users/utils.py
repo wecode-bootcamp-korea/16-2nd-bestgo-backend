@@ -95,3 +95,12 @@ def query_debugger(func):
         return result
     return wrapper
 
+def validate_value(input_int):
+    max_length = Master.objects.count()
+
+    if input_int > max_length:
+        return max_length
+    elif input_int < 0:
+        return 0
+    
+    return input_int
