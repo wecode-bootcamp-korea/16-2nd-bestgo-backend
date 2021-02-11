@@ -172,7 +172,7 @@ class RequestDistributionView(View):
             return JsonResponse({'MESSAGE':'REQUEST_DOES_NOT_EXISTS'},status=404)
 
 class ReceivedRequestListView(View):
-    @master_required
+    @login_required
     def get(self, request):
         which_user     = getattr(request,'user')
         master         = Master.objects.get(user=which_user)
@@ -208,7 +208,7 @@ class ReceivedRequestListView(View):
     
 
 class ReceivedRequestDetailView(View):
-    @master_required
+    @login_required
     def get(self, request):
         try:
             which_request = request.GET['requestId']
@@ -238,7 +238,7 @@ class ReceivedRequestDetailView(View):
             return JsonResponse({'MESSAGE':'REQUEST_DOES_NOT_EXISTS'},status=404)
 
 class QuotationView(View):
-    @master_required
+    @login_required
     def post(self, request):
         try:
             data          = json.loads(request.body)
