@@ -22,6 +22,7 @@ from users.utils            import (
                                     validate_phone_number,
                                     validate_birthdate,
                                     validate_master,
+                                    validate_value,
                                     login_required,
                                     master_required,
                                     query_debugger
@@ -90,6 +91,15 @@ class SignInView(View):
         except TypeError:
             return JsonResponse({'MESSAGE': 'TYPE_ERROR'}, status=400)
 
+class TempMasterView(View):
+    
+    def get(self,request):
+        master = Master.objects.first()
+
+        master_token = jwt.encode({'master_id':master.id}, SECRET_KEY, algorithm=ALGORITHM)
+
+        return JsonResponse({'MESSAGE': 'MASTER_CREATED','master_token':master_token}, status=201)
+
 class MasterSignUpView(View):
 
     @login_required
@@ -123,6 +133,7 @@ class MasterSignUpView(View):
                 MasterService(master=master, service=Service.objects.get(name=service))
             for service in services ]) 
             
+            # master_token      = jwt.encode({'user_id':master.id}, SECRET_KEY, algorithm=ALGORITHM)
             user.phone_number = phone_number
             user.gender       = gender
             user.is_master    = True
@@ -152,7 +163,8 @@ class CategoryServiceView(View):
             
             if query_strings:
                 categories = json.loads(request.GET.get('category'))
-                services   = Service.objects.filter(category__in=categories)
+                offset     = Category.objects.first().id
+                services   = Service.objects.filter(category__in=[category+offset for category in categories])
                 req_dict   = {
                     'question'     : '구체적으로 어떤 서비스를 진행 할 수 있나요?',
                     'sub_question' : '진행하고자 하는 서비스에 대해 알려주세요. 딱! 맞는 분을 연결 시켜 드릴게요.',
@@ -164,7 +176,7 @@ class CategoryServiceView(View):
             req_dict       = {
                 'question'     : '어떤 서비스를 제공 하실 수 있나요?',
                 'sub_question' : '전문적으로 하시는 일을 알려주시면 서비스를 필요로 하는 고객을 연결 시켜 드립니다.',
-                'services'   : [ {'id':category.id, 'name':category.name} for category in all_categories]
+                'services'   : [ {'id':i, 'name':category.name} for i,category in enumerate(all_categories) ]
             }
 
             return JsonResponse(req_dict, status=200)
@@ -183,9 +195,16 @@ class KaKaoView(View):
             kakao_data      = requests.get(url ,headers=headers).json()
             hashed_password = bcrypt.hashpw(token_urlsafe()[:10].encode(), bcrypt.gensalt())
             gender_dict     = {'male':'남자', 'female':'여자'}
-            gender          = Gender.objects.get(name=gender_dict[kakao_data['kakao_account']['profile']['gender']])
+            gender          = Gender.objects.get(name=gender_dict[kakao_data['kakao_account']['gender']])
+            email           = kakao_data['kakao_account']['email']
 
-            user, created = User.objects.get_or_create(
+            if User.objects.filter(email=email).exists():
+                user       = User.objects.get(email=email)
+                user_token = jwt.encode({"user_id":user.id}, SECRET_KEY, ALGORITHM)
+        
+                return JsonResponse({'MESSAGE': 'SUCCESS', 'token':kakao_data}, status=200)
+
+            user = User.objects.create(
                 email    = kakao_data['kakao_account']['email'],
                 name     = kakao_data['kakao_account']['profile']['nickname'],
                 gender   = gender,
@@ -300,18 +319,20 @@ class ProfileListView(View):
     @query_debugger
     def get(self, request):
         sort_method = request.GET.get('sorted_by','id')
+        limit       = validate_value(int(request.GET.get('limit',20)))
+        offset      = validate_value(int(request.GET.get('offset',0))) 
         masters     = Master.objects.select_related('user')\
                                     .prefetch_related('review_set')\
                                     .annotate(avg=Avg('review__rating'),cnt=Count('review'))\
-                                    .order_by(sort_method)
+                                    .order_by(sort_method)[offset:offset+limit]
         master_list = [{
             'id'           : master.id,
             'name'         : master.user.name,
             'introduction' : master.introduction if master.introduction else "",
             'rating'       : round(float(master.avg),1) if master.avg else 0,
-            'review_count' : master.cnt,
+            'reviewCount' : master.cnt,
             'review'       : master.review_set.all()[0].content if master.review_set.exists() else "",
-            'profile_img'  : master.user.profile_image
+            'profileImg'  : master.user.profile_image
         } for master in masters ]
 
         req_dict = {
@@ -330,16 +351,19 @@ class ProfileDetailView(View):
                                     .prefetch_related('masterservice_set__service','master_payments')\
                                     .annotate(avg=Avg('review__rating'))\
                                     .get(id=master_id)
+
             req_dict = [{    
                 'name'         : master.user.name,
+                'info'         : '본인인증 완료',
+                'time'         : '연락 가능 시간 : 오전 6시 ~ 오전 12시',
                 'mainService'  : master.masterservice_set.get(is_main=True).service.name\
                                     if master.masterservice_set.filter(is_main=True) else '',
                 'introduction' : master.introduction if master.introduction else '',
                 'area'         : master.subregions.region.name +" "+ master.subregions.name,
-                'rating'       : round(float(master.avg),1),
+                'rating'       : str(round(float(master.avg),1)),
                 'allService'   : [ master_service.service.name for master_service in master.masterservice_set.all() ],
                 'description'  : master.description if master.description else '',
-                'profile_img'  : master.user.profile_image,
+                'profileImg'  : master.user.profile_image,
                 'payments'     : [ payment.name for payment in master.master_payments.all()]
             }]
 

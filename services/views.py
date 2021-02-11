@@ -37,6 +37,7 @@ class ServiceListView(View):
             category     = request.GET['catCd']
             cat_id       = Category.objects.get(id=category)
 
+
             services     = cat_id.service_set.all()
             service_list = [{
                             'serviceId':service.id,
@@ -172,7 +173,7 @@ class RequestDistributionView(View):
             return JsonResponse({'MESSAGE':'REQUEST_DOES_NOT_EXISTS'},status=404)
 
 class ReceivedRequestListView(View):
-    @login_required
+    @master_required
     def get(self, request):
         which_user     = getattr(request,'user')
         master         = Master.objects.get(user=which_user)
@@ -208,7 +209,7 @@ class ReceivedRequestListView(View):
     
 
 class ReceivedRequestDetailView(View):
-    @login_required
+    @master_required
     def get(self, request):
         try:
             which_request = request.GET['requestId']
@@ -238,7 +239,7 @@ class ReceivedRequestDetailView(View):
             return JsonResponse({'MESSAGE':'REQUEST_DOES_NOT_EXISTS'},status=404)
 
 class QuotationView(View):
-    @login_required
+    @master_required
     def post(self, request):
         try:
             data          = json.loads(request.body)
