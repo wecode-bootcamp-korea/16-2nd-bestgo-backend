@@ -41,7 +41,13 @@
 
 # 🏆 What we did
 > [ @Jungz1](https://github.com/jungz1)
-+
++ Category list 
++ Services per Category list, Detail page
++ Regions, Subregions list
++ Request Create, Distribution(Matching) Endpoint
++ Quotation Create
++ Received Requests and Quotations list and detail
++ Uploading images on S3 and creating image urls
 
 > [Junyoung Jang @FreshTuna](https://github.com/freshtuna)
 + User list, detail Endpoint
